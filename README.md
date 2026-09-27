@@ -26,13 +26,24 @@ python3 app.py --db ./data.db --port 8311
 
 - `GET /health`
 - `GET /api/items`
-- `POST /api/items`
+- `POST /api/items`（可带`area_code`关联区域）
 - `GET /api/items/{id}`
 - `POST /api/items/{id}/records`
 - `POST /api/items/{id}/transition`，必须提交`expected_version`
 - `GET /api/audit`
+- `GET /api/areas`，区域停复工台账列表，标出每个区域当前状态与当前原因
+- `GET /api/areas/{area_code}`，区域详情：停工单、复工单、当前阻断项
+- `POST /api/areas/{area_code}/stop`，现场负责人登记停工：`reason`、`shifts`
+- `POST /api/areas/{area_code}/resume`，安全员提交复工，被退回时返回`blockers`
 
-允许角色：reporter, investigator, safety_manager, viewer。严重度越高、伤害指数越大或未关闭措施越多，优先级越高；严重事故必须在4小时内启动调查。
+允许角色：reporter, investigator, safety_manager, site_supervisor, viewer。严重度越高、伤害指数越大或未关闭措施越多，优先级越高；严重事故必须在4小时内启动调查。
+
+## 区域停复工规则
+
+- 现场负责人（site_supervisor）登记区域编号、停工原因和影响班次；区域已停工时重复登记返回冲突。
+- 严重事故（serious/fatal）登记后默认停整片区域，自动生成停工单，影响班次记为全部班次。
+- 区域内整改记录未关闭或仍有未结事故时，安全员（safety_manager）提交复工会被退回（409），响应与台账中的复工单均写清阻断项。
+- 复工后同区域再发生事故或新增未关闭措施，原复工单作废，区域自动回到停工，列表与详情的`current_reason`标出当前原因。
 
 ## 测试
 

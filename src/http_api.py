@@ -4,10 +4,10 @@ import json
 from http.server import BaseHTTPRequestHandler
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, unquote, urlparse
 
 from .domain import (ConflictError, DomainError, NotFoundError, PermissionDenied,
-                     ValidationError)
+                     ResumeBlockedError, ValidationError)
 from .service import Service
 
 
@@ -71,7 +71,10 @@ def make_handler(service: Service, static_dir: str):
                 status = 400
             else:
                 status = 500
-            self._json(status, {"error": exc.__class__.__name__, "message": str(exc)})
+            payload = {"error": exc.__class__.__name__, "message": str(exc)}
+            if isinstance(exc, ResumeBlockedError):
+                payload["blockers"] = exc.blockers
+            self._json(status, payload)
 
         def do_GET(self) -> None:
             try:
@@ -98,6 +101,19 @@ def make_handler(service: Service, static_dir: str):
                     actor, role = self._identity()
                     del actor
                     self._json(200, {"events": service.audit(role)})
+                elif path == "/api/areas":
+                    actor, role = self._identity()
+                    del actor
+                    self._json(200, {"areas": service.list_areas(role)})
+                elif path.startswith("/api/areas/"):
+                    parts = path.split("/")
+                    if len(parts) != 4:
+                        self._json(404, {"error": "not_found"})
+                        return
+                    area_code = unquote(parts[3])
+                    actor, role = self._identity()
+                    del actor
+                    self._json(200, service.get_area(area_code, role))
                 else:
                     self._json(404, {"error": "not_found"})
             except Exception as exc:
@@ -119,6 +135,14 @@ def make_handler(service: Service, static_dir: str):
                     expected = body.get("expected_version")
                     self._json(200, service.transition(
                         item_id, target, expected, actor, role))
+                elif path.startswith("/api/areas/") and path.endswith("/stop"):
+                    area_code = unquote(path.split("/")[3])
+                    payload = dict(body)
+                    payload["area_code"] = area_code
+                    self._json(201, service.stop_area(payload, actor, role))
+                elif path.startswith("/api/areas/") and path.endswith("/resume"):
+                    area_code = unquote(path.split("/")[3])
+                    self._json(200, service.resume_area(area_code, body, actor, role))
                 else:
                     self._json(404, {"error": "not_found"})
             except Exception as exc:

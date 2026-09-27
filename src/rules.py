@@ -2,7 +2,9 @@ from __future__ import annotations
 from .domain import ConflictError, ValidationError
 TITLE='工伤事故调查与纠正措施'; ENTITY='事故'; ID_PREFIX='OI'
 SEVERITIES=['minor', 'moderate', 'serious', 'fatal']; STATES=['reported', 'investigating', 'corrective_action', 'verification', 'closed']; TRANSITIONS={'reported': ['investigating'], 'investigating': ['corrective_action'], 'corrective_action': ['verification'], 'verification': ['closed'], 'closed': []}; TRANSITION_ROLES={'investigating': ['investigator'], 'corrective_action': ['investigator'], 'verification': ['safety_manager'], 'closed': ['safety_manager']}
-CREATE_ROLES=set(['reporter', 'investigator']); RECORD_ROLES=set(['investigator', 'safety_manager']); AUDIT_ROLES=set(['safety_manager', 'viewer']); VIEW_ROLES=set(['reporter', 'investigator', 'safety_manager', 'viewer'])
+CREATE_ROLES=set(['reporter', 'investigator']); RECORD_ROLES=set(['investigator', 'safety_manager']); AUDIT_ROLES=set(['safety_manager', 'viewer']); VIEW_ROLES=set(['reporter', 'investigator', 'safety_manager', 'site_supervisor', 'viewer'])
+AREA_STOP_ROLES=set(['site_supervisor']); AREA_RESUME_ROLES=set(['safety_manager']); AREA_VIEW_ROLES=set(['reporter', 'investigator', 'safety_manager', 'site_supervisor', 'viewer'])
+SEVERE_SEVERITIES=set(['serious', 'fatal']); STOP_STATES=['active', 'resumed']; RESUME_STATES=['approved', 'rejected', 'voided']; AUTO_STOP_SHIFTS='全部班次'
 SEVERITY_WEIGHT={'minor': 1.0, 'moderate': 3.0, 'serious': 6.0, 'fatal': 9.0}; DEADLINE_HOURS={'minor': 72, 'moderate': 24, 'serious': 8, 'fatal': 4}; TERMINAL_STATES=set(['closed'])
 def priority_score(severity,quantity=0.0,threshold=1.0,open_records=0):
     if severity not in SEVERITY_WEIGHT: raise ValidationError("unknown severity")
@@ -20,3 +22,4 @@ def validate_transition(current,target):
     if not can_transition(current,target): raise ConflictError(f"不能从{current}转换到{target}")
 def completion_blockers(target,open_records): return ["仍有未关闭事项"] if target in TERMINAL_STATES and open_records>0 else []
 def role_for_transition(target): return set(TRANSITION_ROLES.get(target,[]))
+def auto_stop_required(severity): return severity in SEVERE_SEVERITIES
