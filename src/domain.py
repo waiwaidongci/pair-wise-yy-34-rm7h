@@ -5,12 +5,13 @@ class ErrorKind:
     VALIDATION="validation"; NOT_FOUND="not_found"; FORBIDDEN="forbidden"; CONFLICT="conflict"
 class DomainError(Exception):
     kind=ErrorKind.VALIDATION
-    def __init__(self,message): super().__init__(message); self.message=message
+    def __init__(self,message,details=None):
+        super().__init__(message); self.message=message; self.details=details or {}
 class ValidationError(DomainError): kind=ErrorKind.VALIDATION
 class NotFoundError(DomainError): kind=ErrorKind.NOT_FOUND
 class PermissionDenied(DomainError): kind=ErrorKind.FORBIDDEN
 class ConflictError(DomainError): kind=ErrorKind.CONFLICT
-SEVERITIES=['minor', 'moderate', 'serious', 'fatal']; STATES=['reported', 'investigating', 'corrective_action', 'verification', 'closed']; ROLES=['reporter', 'investigator', 'safety_manager', 'viewer']
+SEVERITIES=['minor', 'moderate', 'serious', 'fatal']; STATES=['reported', 'investigating', 'corrective_action', 'verification', 'closed']; ROLES=['reporter', 'investigator', 'safety_manager', 'supervisor', 'viewer']
 @dataclass(frozen=True)
 class Item:
     id:int; title:str; description:str; severity:str; quantity:float; threshold:float; status:str; version:int; external_ref:Optional[str]; created_by:str; created_at:str; updated_at:str
@@ -34,5 +35,22 @@ def require_number(value,field,minimum=0.0):
     except (TypeError,ValueError): raise ValidationError(f"{field}必须是数字")
     if number<minimum: raise ValidationError(f"{field}不能小于{minimum}")
     return number
+def require_optional_text(value,field,max_length=2000):
+    if value is None: return None
+    return require_text(value,field,max_length)
+def require_text_list(value,field,max_items=20,max_length=100):
+    if not isinstance(value,list) or not value: raise ValidationError(f"{field}不能为空")
+    result=[]
+    for entry in value:
+        text=require_text(entry,field,max_length)
+        if text not in result: result.append(text)
+    if len(result)>max_items: raise ValidationError(f"{field}不能超过{max_items}项")
+    return result
+def require_optional_int(value,field):
+    if value is None: return None
+    if isinstance(value,bool): raise ValidationError(f"{field}必须是整数")
+    if not isinstance(value,int): raise ValidationError(f"{field}必须是整数")
+    if value<1: raise ValidationError(f"{field}必须是正整数")
+    return value
 def ensure_role(role,allowed):
     if role not in allowed: raise PermissionDenied("当前角色无权执行该操作")
